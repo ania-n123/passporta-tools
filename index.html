@@ -208,7 +208,16 @@ const VISA_DATA = [
   {name:"Visa for Qatar | USA",govt:18},{name:"Uganda Single entry (90 days)",govt:49},
   {name:"Kenya Multiple entry East Africa Visa (90 days)",govt:96},{name:"Somalia eTAS",govt:56},
   {name:"Djibouti Single entry (30 days)",govt:23},{name:"Ethiopia Single entry (30 days)",govt:55},
-  {name:"South Sudan Single entry (standard)",govt:51},{name:"South Sudan Single entry (higher)",govt:163}
+  {name:"South Sudan Single entry (standard)",govt:51},{name:"South Sudan Single entry (higher)",govt:163},
+  // Kanada
+  {name:"ArriveCAN (Advance Declaration Form)",govt:0,price:39},
+  {name:"Canada ArriveCAN",govt:0,price:39},
+  {name:"Canada - priority processing SLP",govt:0,price:20},
+  {name:"Canada - express processing SLP",govt:0,price:40},
+  // Australia
+  {name:"eVisitor for Australia",govt:0,price:74},
+  // Korea
+  {name:"K-ETA South Korea",govt:8,price:34}
 ];
 
 let selectedScenario = null;
@@ -254,7 +263,7 @@ function filterVisa() {
   const sel = document.getElementById('visaSelect');
   if (q.length < 2) { sel.style.display = 'none'; return; }
   filtered = VISA_DATA.filter(v => v.name.toLowerCase().includes(q));
-  sel.innerHTML = filtered.map((v,i) => `<option value="${i}">${v.name} (govt: ${v.govt} EUR)</option>`).join('');
+  sel.innerHTML = filtered.map((v,i) => `<option value="${i}">${v.name} (govt: ${v.govt} EUR${v.price ? ', cena: '+v.price+' EUR' : ''})</option>`).join('');
   sel.style.display = filtered.length ? 'block' : 'none';
   clearResult();
 }
