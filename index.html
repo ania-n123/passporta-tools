@@ -9,9 +9,9 @@
   .header { background: #e85d04; color: white; padding: 20px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
   .header h1 { font-size: 22px; font-weight: 600; }
   .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
-  .rate-badge { background: rgba(255,255,255,0.2); border-radius: 8px; padding: 8px 14px; font-size: 13px; text-align: right; }
-  .rate-badge .rate-val { font-size: 18px; font-weight: 700; }
-  .rate-badge .rate-date { font-size: 11px; opacity: 0.8; }
+  .rate-bar { background: #1a1a2e; color: #fff; text-align: center; padding: 10px 16px; font-size: 14px; }
+  .rate-bar .rate-val { font-size: 20px; font-weight: 700; color: #ffd700; }
+  .rate-bar .rate-date { font-size: 12px; opacity: 0.7; margin-left: 10px; }
   .container { max-width: 700px; margin: 32px auto; padding: 0 16px; }
   .card { background: white; border-radius: 10px; padding: 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
   .card h2 { font-size: 15px; font-weight: 600; color: #e85d04; margin-bottom: 18px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -68,9 +68,9 @@
     <h1>Kalkulator Zwrotów</h1>
     <p>Passporta — narzędzie wewnętrzne dla pracowników</p>
   </div>
-  <div class="rate-badge" id="rateBadge">
-    <div class="rate-loading">Pobieranie kursu...</div>
-  </div>
+</div>
+<div class="rate-bar" id="rateBadge">
+  <div class="rate-loading">Pobieranie kursu USD...</div>
 </div>
 
 <div class="container">
@@ -94,33 +94,7 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>2. Scenariusz</h2>
-    <div class="scenario-grid">
-      <button class="scenario-btn" onclick="setScenario('full')" id="btn-full">
-        <span class="icon">✅</span>
-        <span class="title">Pełny zwrot</span>
-        <span class="desc">14 dni, usługa NIE została rozpoczęta</span>
-      </button>
-      <button class="scenario-btn" onclick="setScenario('partial')" id="btn-partial">
-        <span class="icon">⚠️</span>
-        <span class="title">Zwrot częściowy</span>
-        <span class="desc">Usługa rozpoczęta, wniosek NIE złożony</span>
-      </button>
-      <button class="scenario-btn" onclick="setScenario('none_submitted')" id="btn-none_submitted">
-        <span class="icon">❌</span>
-        <span class="title">Brak zwrotu</span>
-        <span class="desc">Wniosek wizowy już złożony</span>
-      </button>
-      <button class="scenario-btn" onclick="setScenario('none_rush')" id="btn-none_rush">
-        <span class="icon">🚀</span>
-        <span class="title">Brak zwrotu (Rush)</span>
-        <span class="desc">Usługa Rush/Super Rush/Emergency wykonana</span>
-      </button>
-    </div>
-  </div>
-
-  <button class="btn-calc" onclick="calculate()">Oblicz zwrot</button>
+  <button class="btn-calc" onclick="calculate()">Oblicz zwrot częściowy</button>
 
   <div class="card result" id="result" style="margin-top:20px;">
     <h2>Wynik</h2>
@@ -525,7 +499,7 @@ const VISA_DATA = [
   {name:"K-ETA South Korea",govt:8,price:34}
 ];
 
-let selectedScenario = null;
+let selectedScenario = 'partial';
 let filtered = [];
 let eurUsdRate = null;
 let rateDate = null;
@@ -537,16 +511,10 @@ async function fetchRate() {
     const data = await res.json();
     eurUsdRate = data.rates.USD;
     rateDate = data.date;
-    document.getElementById('rateBadge').innerHTML = `
-      <div class="rate-date">Kurs dnia ${rateDate}</div>
-      <div class="rate-val">1 EUR = ${eurUsdRate.toFixed(4)} USD</div>
-    `;
+    document.getElementById('rateBadge').innerHTML = `Kurs USD z dnia ${rateDate}: <span class="rate-val">1 EUR = ${eurUsdRate.toFixed(4)} USD</span><span class="rate-date">(źródło: frankfurter.app)</span>`;
   } catch(e) {
     eurUsdRate = 1.17; // fallback
-    document.getElementById('rateBadge').innerHTML = `
-      <div class="rate-date">Kurs offline (fallback)</div>
-      <div class="rate-val">1 EUR ≈ ${eurUsdRate.toFixed(2)} USD</div>
-    `;
+    document.getElementById('rateBadge').innerHTML = `Kurs USD (offline): <span class="rate-val">1 EUR ≈ ${eurUsdRate.toFixed(2)} USD</span>`;
   }
 }
 
@@ -599,7 +567,6 @@ function calculate() {
 
   if (isNaN(total) || total <= 0) { alert('Podaj cenę całkowitą.'); return; }
   if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
-  if (!selectedScenario)          { alert('Wybierz scenariusz.'); return; }
   if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
 
   const commission = total - govt;
