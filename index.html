@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Kalkulator Zwrotów — Passporta</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; color: #222; }
+  .header { background: #e85d04; color: white; padding: 20px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+  .rate-badge { background: rgba(255,255,255,0.2); border-radius: 8px; padding: 8px 14px; font-size: 13px; text-align: right; }
+  .rate-badge .rate-val { font-size: 18px; font-weight: 700; }
+  .rate-badge .rate-date { font-size: 11px; opacity: 0.8; }
+  .container { max-width: 700px; margin: 32px auto; padding: 0 16px; }
+  .card { background: white; border-radius: 10px; padding: 28px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+  .card h2 { font-size: 15px; font-weight: 600; color: #e85d04; margin-bottom: 18px; text-transform: uppercase; letter-spacing: 0.5px; }
+  label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 5px; margin-top: 14px; }
+  label:first-child { margin-top: 0; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 14px; color: #222; background: #fafafa;
+  }
+  input:focus, select:focus { outline: none; border-color: #e85d04; background: white; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .scenario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .scenario-btn {
+    padding: 12px 10px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer;
+    background: white; font-size: 13px; text-align: left; transition: all 0.15s;
+  }
+  .scenario-btn:hover { border-color: #e85d04; background: #fff5f0; }
+  .scenario-btn.active { border-color: #e85d04; background: #fff5f0; }
+  .scenario-btn .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .scenario-btn .title { font-weight: 600; font-size: 13px; }
+  .scenario-btn .desc { font-size: 11px; color: #888; margin-top: 2px; }
+  .btn-calc {
+    width: 100%; padding: 14px; background: #e85d04; color: white; border: none;
+    border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 20px;
+  }
+  .btn-calc:hover { background: #c44d00; }
+  .result { display: none; }
+  .result-box { border-radius: 8px; padding: 20px; margin-bottom: 12px; }
+  .result-box.green { background: #e8f5e9; border-left: 4px solid #43a047; }
+  .result-box.red { background: #fce4ec; border-left: 4px solid #e53935; }
+  .result-box.orange { background: #fff3e0; border-left: 4px solid #fb8c00; }
+  .result-box .label { font-size: 12px; color: #666; margin-bottom: 4px; }
+  .result-box .amount { font-size: 28px; font-weight: 700; }
+  .result-box .amount-usd { font-size: 16px; font-weight: 500; opacity: 0.7; margin-top: 3px; }
+  .result-box.green .amount { color: #2e7d32; }
+  .result-box.red .amount { color: #c62828; }
+  .result-box.orange .amount { color: #e65100; }
+  .breakdown { background: #f8f8f8; border-radius: 8px; padding: 16px; }
+  .breakdown table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .breakdown tr td { padding: 6px 0; }
+  .breakdown tr td:nth-child(2) { text-align: right; font-weight: 500; color: #333; }
+  .breakdown tr td:nth-child(3) { text-align: right; font-weight: 500; color: #888; padding-left: 12px; }
+  .breakdown thead td { font-size: 11px; color: #aaa; padding-bottom: 4px; }
+  .breakdown tr.total td { border-top: 1px solid #ddd; padding-top: 10px; font-weight: 700; font-size: 14px; }
+  .note { font-size: 12px; color: #888; margin-top: 12px; font-style: italic; }
+  .reset-btn { background: none; border: none; color: #e85d04; font-size: 13px; cursor: pointer; margin-top: 10px; text-decoration: underline; }
+  .rate-loading { color: #aaa; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>Kalkulator Zwrotów</h1>
+    <p>Passporta — narzędzie wewnętrzne dla pracowników</p>
+  </div>
+  <div class="rate-badge" id="rateBadge">
+    <div class="rate-loading">Pobieranie kursu...</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <h2>1. Dane zamówienia</h2>
+
+    <label>Rodzaj wizy</label>
+    <input type="text" id="visaSearch" placeholder="Wpisz nazwę wizy lub kraj..." oninput="filterVisa()" autocomplete="off">
+    <select id="visaSelect" size="1" onchange="onVisaSelect()" style="margin-top:6px; display:none; max-height:200px;"></select>
+
+    <div class="row2">
+      <div>
+        <label>Cena całkowita zapłacona przez klienta (EUR)</label>
+        <input type="number" id="totalPrice" placeholder="np. 199.00" step="0.01" min="0" oninput="clearResult()">
+      </div>
+      <div>
+        <label>Government Fee (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
+        <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult()">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Scenariusz</h2>
+    <div class="scenario-grid">
+      <button class="scenario-btn" onclick="setScenario('full')" id="btn-full">
+        <span class="icon">✅</span>
+        <span class="title">Pełny zwrot</span>
+        <span class="desc">14 dni, usługa NIE została rozpoczęta</span>
+      </button>
+      <button class="scenario-btn" onclick="setScenario('partial')" id="btn-partial">
+        <span class="icon">⚠️</span>
+        <span class="title">Zwrot częściowy</span>
+        <span class="desc">Usługa rozpoczęta, wniosek NIE złożony</span>
+      </button>
+      <button class="scenario-btn" onclick="setScenario('none_submitted')" id="btn-none_submitted">
+        <span class="icon">❌</span>
+        <span class="title">Brak zwrotu</span>
+        <span class="desc">Wniosek wizowy już złożony</span>
+      </button>
+      <button class="scenario-btn" onclick="setScenario('none_rush')" id="btn-none_rush">
+        <span class="icon">🚀</span>
+        <span class="title">Brak zwrotu (Rush)</span>
+        <span class="desc">Usługa Rush/Super Rush/Emergency wykonana</span>
+      </button>
+    </div>
+  </div>
+
+  <button class="btn-calc" onclick="calculate()">Oblicz zwrot</button>
+
+  <div class="card result" id="result" style="margin-top:20px;">
+    <h2>Wynik</h2>
+    <div id="result-content"></div>
+    <button class="reset-btn" onclick="resetAll()">↺ Nowe obliczenie</button>
+  </div>
+
+</div>
+
+<script>
+const VISA_DATA = [
+  {name:"esta for usa",govt:40},{name:"visa for saudi arabia",govt:100},{name:"visa to azerbaijan",govt:56},
+  {name:"Visa for Cambodia",govt:34},{name:"Visa for Kenya | Transit",govt:32},{name:"Visa for Kenya | Tourism",govt:32},
+  {name:"Visa for Kenya | Business",govt:32},{name:"Visa for Kenya | East Africa",govt:96},
+  {name:"Visa for Bahrain | Single 14 Days",govt:23},{name:"Visa for Bahrain | Multiple 30 Days",govt:40},
+  {name:"Visa for Bahrain | Multiple 90 Days",govt:109},{name:"Visa for Bahrain | Transit",govt:23},
+  {name:"Visa for Egypt | Single",govt:24},{name:"Visa for Egypt | Multiple",govt:56},{name:"Visa for Egypt | Transit",govt:24},
+  {name:"Visa for Turkey | Najnizsza cena",govt:26},{name:"Visa for Turkey | Srednia polka cenowa",govt:48},
+  {name:"Visa for Turkey | Najwyzsza polka cenowa",govt:64},{name:"Visa for Oman Single thirty Days",govt:49},
+  {name:"Visa for Oman | Multiple entry 1 year (30 days of stay)",govt:121},
+  {name:"Visa for Oman Multiple entry ten years six months of stay",govt:121},{name:"Visa for Oman Transit",govt:49},
+  {name:"Visa for Tanzania | Tourism",govt:48},{name:"visa for tanzania transit",govt:28},
+  {name:"Visa for Tanzania | Tourism special for USA | Evisa Express",govt:95},
+  {name:"visa for india business 215-220 usd gov fee",govt:183},{name:"visa for india business other countries",govt:102},
+  {name:"visa for india medical attendant",govt:77},{name:"Visa for India | Transit | Other countries",govt:25},
+  {name:"Visa for Ethiopia | Single 30 Days",govt:55},{name:"Visa for Russia",govt:49},{name:"Visa for Laos",govt:49},
+  {name:"visa for kuwait",govt:30},{name:"Visa for Qatar",govt:26},{name:"Visa for Malawi",govt:52},
+  {name:"Visa for UK",govt:23},{name:"Visa for Djibouti",govt:14},{name:"visa for new zealand",govt:67},
+  {name:"Multiple entry eVisa for Brazil",govt:75},{name:"Uzbekistan Single entry tourism (30 days)",govt:19},
+  {name:"Visa for Kyrgyzstan",govt:45},{name:"Visa for Armenia | Transit",govt:8},
+  {name:"Visa for Tanzania | Tourism special for USA | Satellite",govt:95},{name:"georgia tourism",govt:20},
+  {name:"visa to india tourism multiple entry one year",govt:39},
+  {name:"visa to india tourism multiple entry five years",govt:170},{name:"visa to india tourism thirty days",govt:25},
+  {name:"south_korea",govt:8},{name:"visa for india medical treatment",govt:77},{name:"visa for india ayurveda",govt:77},
+  {name:"visa for egypt for india single",govt:162},{name:"visa for egypt for india multiple",govt:162},
+  {name:"visa for egypt for india transit",govt:162},{name:"visa for vietnam",govt:24},
+  {name:"visa for india econference",govt:77},{name:"Saudi Visa",govt:100},{name:"GCC Visa Saudi",govt:140},
+  {name:"Visa for Sri Lanka tourist double entry 30 days",govt:49},{name:"Cambodia tourism",govt:34},
+  {name:"Cambodia business",govt:40},{name:"Transit Jordan visa",govt:54},{name:"Jordan Double 3 months",govt:80},
+  {name:"Jordan multi 6 months",govt:159},{name:"Jordan multi 1 year",govt:264},
+  {name:"Oman RTG ten days Low Price",govt:88},{name:"Oman RTG ten days High Price",govt:116},
+  {name:"Oman RTG thirty days Low Price",govt:162},{name:"Oman RTG thirty days High Price",govt:185},
+  {name:"Visa for TanzaniaBusiness",govt:237},{name:"Jordan Pass",govt:108},{name:"Morocco",govt:109},
+  {name:"Transit visa",govt:33},{name:"Visa for Kenya / Tourism special for USA",govt:196},
+  {name:"Visa for Kenya / Business special for USA",govt:196},
+  {name:"UAE | Extension of stay (RTG)",govt:400},{name:"Iran single entry (30 days)",govt:19},
+  {name:"Seychelles Travel Authorisation",govt:11},
+  {name:"Visa for Sri Lanka business double entry 30 days",govt:54},
+  {name:"Myanmar single entry tourism (90 days)",govt:47},{name:"Myanmar single entry business (90 days)",govt:66},
+  {name:"Singapore single entry | Tourism",govt:196},{name:"Chad Multiple entry eVisa",govt:102},
+  {name:"Multiple entry eVisa for Brazil | Higher price",govt:219},{name:"Israel ETA",govt:7},
+  {name:"Namibia Multiple entry eVisa",govt:84},{name:"Kuwait eVisa for GCC residents",govt:57},
+  {name:"Benin Transit",govt:51},{name:"Transit single entry (5 days) | Burkina Faso",govt:35},
+  {name:"Single entry - tourism (90 days) | Burkina Faso",govt:161},
+  {name:"Single entry - business (90 days) | Burkina Faso",govt:120},
+  {name:"Single entry - family visit (90 days) | Burkina Faso",govt:161},
+  {name:"Uzbekistan Single entry business (30 days)",govt:19},
+  {name:"Uzbekistan Double entry tourism (30 days)",govt:33},{name:"Uzbekistan Double entry business (30 days)",govt:33},
+  {name:"Uzbekistan Multiple entry tourism (30 days)",govt:47},{name:"Uzbekistan Multiple entry business (30 days)",govt:47},
+  {name:"Ukraine Single entry (30 days)",govt:19},{name:"Ukraine Double entry (30 days)",govt:28},
+  {name:"Suriname Tourist Visa 3 Months",govt:67},{name:"Suriname Tourist Visa 1 Year",govt:194},
+  {name:"Suriname Entry Fee Single",govt:49},{name:"Suriname Multiple Entry Fee (FRA & BRA)",govt:71},
+  {name:"Suriname Business Visa 3 Months",govt:101},{name:"Suriname Business Visa 5 Years",govt:322},
+  {name:"Suriname Business Visa 5 Years (USA)",govt:152},{name:"Suriname Transit Visa",govt:28},
+  {name:"Madagascar Single entry 15 days",govt:30},{name:"Madagascar Single entry 30 days",govt:35},
+  {name:"Madagascar Single entry 60 days",govt:40},{name:"Madagascar Single entry 90 days",govt:50},
+  {name:"Indonesia Single entry Tourism (60 days)",govt:91},{name:"Indonesia Single entry Business (60 days)",govt:91},
+  {name:"Indonesia Single entry Tourism (eVOA 30 days)",govt:32},
+  {name:"Indonesia Single entry Business (eVOA 30 days)",govt:32},
+  {name:"Indonesia Transit (Higher price for 60-day only nationalities)",govt:91},
+  {name:"Indonesia Transit",govt:32},{name:"Kenya Single entry tourism (90 days)",govt:32},
+  {name:"Kenya Single entry business (90 days)",govt:32},
+  {name:"Kenya Multiple entry tourism (5 years USA)",govt:196},
+  {name:"Kenya Multiple entry business (5 years USA)",govt:196},
+  {name:"Cambodia Single entry tourism (3 months)",govt:34},{name:"Cambodia Single entry business (3 months)",govt:40},
+  {name:"Oman multiple one year",govt:121},{name:"Vietnam VOA (M&G + FT, up to 20 days)",govt:126},
+  {name:"Multiple entry tourism (5 years) | Highest",govt:411},{name:"Multiple entry tourism (5 years) | Higher",govt:187},
+  {name:"visa to india tourism multiple entry five years | Highest",govt:411},
+  {name:"visa to india tourism multiple entry five years | Higher",govt:187},
+  {name:"visa for india business 190 usd gov fee",govt:161},{name:"visa for india business 242 usd gov fee",govt:206},
+  {name:"visa for india business 165 usd gov fee",govt:140},{name:"visa for india business 200 usd gov fee",govt:170},
+  {name:"visa for india business 145 usd gov fee",govt:123},{name:"visa for india business 415 usd gov fee",govt:352},
+  {name:"Egypt Stamped Single entry tourist visa",govt:138},{name:"Egypt Stamped Multiple entry tourist visa",govt:165},
+  {name:"Egypt Stamped Single entry business visa",govt:138},{name:"Egypt Stamped Multiple entry business visa",govt:165},
+  {name:"Visa for Qatar | USA",govt:18},{name:"Uganda Single entry (90 days)",govt:49},
+  {name:"Kenya Multiple entry East Africa Visa (90 days)",govt:96},{name:"Somalia eTAS",govt:56},
+  {name:"Djibouti Single entry (30 days)",govt:23},{name:"Ethiopia Single entry (30 days)",govt:55},
+  {name:"South Sudan Single entry (standard)",govt:51},{name:"South Sudan Single entry (higher)",govt:163}
+];
+
+let selectedScenario = null;
+let filtered = [];
+let eurUsdRate = null;
+let rateDate = null;
+
+// Pobierz kurs EUR/USD przy ładowaniu
+async function fetchRate() {
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
+    const data = await res.json();
+    eurUsdRate = data.rates.USD;
+    rateDate = data.date;
+    document.getElementById('rateBadge').innerHTML = `
+      <div class="rate-date">Kurs dnia ${rateDate}</div>
+      <div class="rate-val">1 EUR = ${eurUsdRate.toFixed(4)} USD</div>
+    `;
+  } catch(e) {
+    eurUsdRate = 1.17; // fallback
+    document.getElementById('rateBadge').innerHTML = `
+      <div class="rate-date">Kurs offline (fallback)</div>
+      <div class="rate-val">1 EUR ≈ ${eurUsdRate.toFixed(2)} USD</div>
+    `;
+  }
+}
+
+fetchRate();
+
+function toUSD(eur) {
+  if (!eurUsdRate) return null;
+  return Math.round(eur * eurUsdRate);
+}
+
+function fmtEUR(n) { return n.toFixed(2).replace('.', ',') + ' EUR'; }
+function fmtUSD(n) {
+  if (n === null) return '—';
+  return Math.round(n) + ' USD';
+}
+
+function filterVisa() {
+  const q = document.getElementById('visaSearch').value.toLowerCase();
+  const sel = document.getElementById('visaSelect');
+  if (q.length < 2) { sel.style.display = 'none'; return; }
+  filtered = VISA_DATA.filter(v => v.name.toLowerCase().includes(q));
+  sel.innerHTML = filtered.map((v,i) => `<option value="${i}">${v.name} (govt: ${v.govt} EUR)</option>`).join('');
+  sel.style.display = filtered.length ? 'block' : 'none';
+  clearResult();
+}
+
+function onVisaSelect() {
+  const sel = document.getElementById('visaSelect');
+  if (sel.selectedIndex < 0) return;
+  const idx = parseInt(sel.value);
+  const visa = filtered[idx];
+  document.getElementById('visaSearch').value = visa.name;
+  document.getElementById('govtFee').value = visa.govt;
+  sel.style.display = 'none';
+  clearResult();
+}
+
+function setScenario(s) {
+  selectedScenario = s;
+  ['full','partial','none_submitted','none_rush'].forEach(k => {
+    document.getElementById('btn-'+k).classList.toggle('active', k === s);
+  });
+  clearResult();
+}
+
+function calculate() {
+  const total = parseFloat(document.getElementById('totalPrice').value);
+  const govt  = parseFloat(document.getElementById('govtFee').value);
+
+  if (isNaN(total) || total <= 0) { alert('Podaj cenę całkowitą.'); return; }
+  if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
+  if (!selectedScenario)          { alert('Wybierz scenariusz.'); return; }
+  if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
+
+  const commission = total - govt;
+  let refund = 0, keep = 0, color = '', title = '', note = '';
+  const breakdown = [];
+
+  if (selectedScenario === 'full') {
+    refund = total; keep = 0; color = 'green';
+    title = 'Pełny zwrot';
+    note = 'Klient odstąpił w ciągu 14 dni, usługa nie została rozpoczęta.';
+    breakdown.push(
+      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
+      ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))],
+      ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
+    );
+  } else if (selectedScenario === 'partial') {
+    keep   = Math.round(commission * 0.5 * 100) / 100;
+    refund = Math.round((govt + commission * 0.5) * 100) / 100;
+    color  = 'orange'; title = 'Zwrot częściowy';
+    note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji.';
+    breakdown.push(
+      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
+      ['Government fee', fmtEUR(govt), fmtUSD(toUSD(govt))],
+      ['Prowizja Passporta', fmtEUR(commission), fmtUSD(toUSD(commission))],
+      ['50% prowizji (zatrzymujemy)', fmtEUR(keep), fmtUSD(toUSD(keep))],
+      ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))]
+    );
+  } else if (selectedScenario === 'none_submitted') {
+    refund = 0; keep = total; color = 'red';
+    title = 'Brak zwrotu — wniosek złożony';
+    note  = 'Wniosek wizowy został już złożony do organu. Zwrot nie przysługuje.';
+    breakdown.push(
+      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
+      ['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)],
+      ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
+    );
+  } else if (selectedScenario === 'none_rush') {
+    refund = 0; keep = total; color = 'red';
+    title = 'Brak zwrotu — usługa Rush wykonana';
+    note  = 'Klient złożył deklarację Rush i zrzekł się prawa do odstąpienia po wykonaniu usługi.';
+    breakdown.push(
+      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
+      ['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)],
+      ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
+    );
+  }
+
+  const amountEUR = refund > 0 ? refund : keep;
+  const amountUSD = toUSD(amountEUR);
+  const amountLabel = refund > 0 ? 'Kwota zwrotu dla klienta' : 'Kwota zatrzymana przez Passporta';
+
+  let html = `
+    <div class="result-box ${color}">
+      <div class="label">${title}</div>
+      <div class="amount">${fmtEUR(amountEUR)}</div>
+      <div class="amount-usd">≈ ${fmtUSD(amountUSD)}</div>
+      <div class="label" style="margin-top:6px">${amountLabel}</div>
+    </div>
+    <div class="breakdown">
+      <table>
+        <thead><tr><td></td><td>EUR</td><td>USD</td></tr></thead>
+        ${breakdown.map((r,i) => `<tr class="${i===breakdown.length-1?'total':''}"><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}
+      </table>
+    </div>
+    <p class="note">${note}${rateDate ? ` Kurs: 1 EUR = ${eurUsdRate.toFixed(4)} USD (${rateDate}).` : ''}</p>
+  `;
+
+  const res = document.getElementById('result');
+  document.getElementById('result-content').innerHTML = html;
+  res.style.display = 'block';
+  res.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function clearResult() {
+  document.getElementById('result').style.display = 'none';
+}
+
+function resetAll() {
+  document.getElementById('visaSearch').value = '';
+  document.getElementById('visaSelect').style.display = 'none';
+  document.getElementById('totalPrice').value = '';
+  document.getElementById('govtFee').value = '';
+  selectedScenario = null;
+  ['full','partial','none_submitted','none_rush'].forEach(k =>
+    document.getElementById('btn-'+k).classList.remove('active'));
+  clearResult();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>
