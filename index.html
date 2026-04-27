@@ -511,7 +511,10 @@ const VISA_DATA = [
   {name:"Australia Skilled Worker Visa Consultation",govt:0,price:49},
   {name:"Australia Transit Visa Consultation",govt:0,price:49},
   {name:"Australia Temporary Activity Visa Consultation",govt:0,price:49},
-  {name:"K-ETA South Korea",govt:8,price:34}
+  {name:"K-ETA South Korea",govt:8,price:34},
+  {name:"UK ETA",govt:0,priceUSD:105},
+  {name:"ESTA for USA | USD price",govt:0,priceUSD:128},
+  {name:"Indonesia | USD price",govt:0,priceUSD:122}
 ];
 
 let selectedScenario = 'partial';
@@ -559,7 +562,12 @@ function filterVisa() {
   const sel = document.getElementById('visaSelect');
   if (q.length < 2) { sel.style.display = 'none'; return; }
   filtered = VISA_DATA.filter(v => v.name.toLowerCase().includes(q));
-  sel.innerHTML = filtered.map((v,i) => `<option value="${i}">${v.name}${v.price ? ' — cena: '+v.price+' EUR' : ''} (govt: ${v.govt} EUR)</option>`).join('');
+  sel.innerHTML = filtered.map((v,i) => {
+    const priceStr = v.priceUSD
+      ? ` — cena: ${v.priceUSD} USD${eurUsdRate ? ' (≈' + (v.priceUSD / eurUsdRate).toFixed(2) + ' EUR)' : ''}`
+      : (v.price ? ' — cena: ' + v.price + ' EUR' : '');
+    return `<option value="${i}">${v.name}${priceStr} (govt: ${v.govt} EUR)</option>`;
+  }).join('');
   sel.style.display = filtered.length ? 'block' : 'none';
   clearResult();
 }
@@ -571,7 +579,11 @@ function onVisaSelect() {
   const visa = filtered[idx];
   document.getElementById('visaSearch').value = visa.name;
   document.getElementById('govtFee').value = visa.govt;
-  if (visa.price) document.getElementById('totalPrice').value = visa.price;
+  if (visa.priceUSD && eurUsdRate) {
+    document.getElementById('totalPrice').value = (visa.priceUSD / eurUsdRate).toFixed(2);
+  } else if (visa.price) {
+    document.getElementById('totalPrice').value = visa.price;
+  }
   sel.style.display = 'none';
   clearResult();
 }
