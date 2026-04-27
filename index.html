@@ -59,6 +59,9 @@
   .note { font-size: 12px; color: #888; margin-top: 12px; font-style: italic; }
   .reset-btn { background: none; border: none; color: #e85d04; font-size: 13px; cursor: pointer; margin-top: 10px; text-decoration: underline; }
   .rate-loading { color: #aaa; font-size: 12px; }
+  .cur-btn { border: 1px solid #e85d04; background: none; color: #e85d04; padding: 2px 9px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+  .cur-btn.active { background: #e85d04; color: white; }
+  .cur-btn + .cur-btn { margin-left: 4px; }
   .extra-product-row { display: grid; grid-template-columns: 1fr 120px 36px; gap: 10px; align-items: end; margin-bottom: 10px; }
   .extra-product-row label { margin-top: 0; }
   .btn-add-product { background: none; border: 1px dashed #e85d04; color: #e85d04; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 6px; width: 100%; }
@@ -109,7 +112,7 @@
   <button class="btn-calc" onclick="calculate()">Oblicz zwrot częściowy</button>
 
   <div class="card result" id="result" style="margin-top:20px;">
-    <h2>Wynik</h2>
+    <h2>Wynik <span style="float:right;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;">Waluta: <button onclick="setDisplayCurrency('EUR')" id="cur-eur" class="cur-btn active">EUR</button><button onclick="setDisplayCurrency('USD')" id="cur-usd" class="cur-btn">USD</button></span></h2>
     <div id="result-content"></div>
     <button class="reset-btn" onclick="resetAll()">↺ Nowe obliczenie</button>
   </div>
@@ -512,6 +515,14 @@ const VISA_DATA = [
 ];
 
 let selectedScenario = 'partial';
+let displayCurrency = 'EUR';
+
+function setDisplayCurrency(cur) {
+  displayCurrency = cur;
+  document.getElementById('cur-eur').classList.toggle('active', cur === 'EUR');
+  document.getElementById('cur-usd').classList.toggle('active', cur === 'USD');
+  if (document.getElementById('result').style.display !== 'none') calculate();
+}
 let filtered = [];
 let eurUsdRate = null;
 let rateDate = null;
@@ -675,11 +686,14 @@ function calculate() {
   const amountUSD = toUSD(amountEUR);
   const amountLabel = refund > 0 ? 'Kwota zwrotu dla klienta' : 'Kwota zatrzymana przez Passporta';
 
+  const mainAmount = displayCurrency === 'USD' ? fmtUSD(amountUSD) : fmtEUR(amountEUR);
+  const secAmount  = displayCurrency === 'USD' ? `≈ ${fmtEUR(amountEUR)}` : `≈ ${fmtUSD(amountUSD)}`;
+
   let html = `
     <div class="result-box ${color}">
       <div class="label">${title}</div>
-      <div class="amount">${fmtEUR(amountEUR)}</div>
-      <div class="amount-usd">≈ ${fmtUSD(amountUSD)}</div>
+      <div class="amount">${mainAmount}</div>
+      <div class="amount-usd">${secAmount}</div>
       <div class="label" style="margin-top:6px">${amountLabel}</div>
     </div>
     <div class="breakdown">
