@@ -91,14 +91,20 @@
     <input type="text" id="visaSearch" placeholder="Wpisz nazwę wizy lub kraj..." oninput="filterVisa()" autocomplete="off">
     <select id="visaSelect" size="1" onchange="onVisaSelect()" style="margin-top:6px; display:none; max-height:200px;"></select>
 
-    <div class="row2">
+    <div style="margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span style="font-size:12px;color:#888;">Waluta wejściowa:</span>
+      <button onclick="setInputCurrency('EUR')" id="inp-eur" class="cur-btn active">EUR</button>
+      <button onclick="setInputCurrency('USD')" id="inp-usd" class="cur-btn">USD</button>
+      <span id="inp-note" style="font-size:12px;color:#aaa;margin-left:4px;"></span>
+    </div>
+    <div class="row2" style="margin-top:10px;">
       <div>
-        <label>Cena całkowita zapłacona przez klienta (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
-        <input type="number" id="totalPrice" placeholder="np. 199.00" step="0.01" min="0" oninput="clearResult()">
+        <label id="label-total">Cena całkowita zapłacona przez klienta (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
+        <input type="number" id="totalPrice" placeholder="np. 199.00" step="0.01" min="0" oninput="clearResult(); updateInputNote();">
       </div>
       <div>
-        <label>Government Fee (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
-        <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult()">
+        <label id="label-govt">Government Fee (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
+        <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult(); updateInputNote();">
       </div>
     </div>
   </div>
@@ -519,6 +525,29 @@ const VISA_DATA = [
 
 let selectedScenario = 'partial';
 let displayCurrency = 'EUR';
+let inputCurrency = 'EUR';
+
+function setInputCurrency(cur) {
+  inputCurrency = cur;
+  document.getElementById('inp-eur').classList.toggle('active', cur === 'EUR');
+  document.getElementById('inp-usd').classList.toggle('active', cur === 'USD');
+  const c = cur === 'USD' ? 'USD' : 'EUR';
+  document.getElementById('label-total').innerHTML = `Cena całkowita zapłacona przez klienta (${c}) <span style="font-weight:400;color:#aaa">— auto z listy</span>`;
+  document.getElementById('label-govt').innerHTML  = `Government Fee (${c}) <span style="font-weight:400;color:#aaa">— auto z listy</span>`;
+  clearResult();
+  updateInputNote();
+}
+
+function updateInputNote() {
+  const note = document.getElementById('inp-note');
+  if (!note || inputCurrency !== 'USD' || !eurUsdRate) { if(note) note.textContent=''; return; }
+  const total = parseFloat(document.getElementById('totalPrice').value);
+  const govt  = parseFloat(document.getElementById('govtFee').value);
+  const parts = [];
+  if (!isNaN(total) && total > 0) parts.push('cena: ' + (total / eurUsdRate).toFixed(2) + ' EUR');
+  if (!isNaN(govt)  && govt  > 0) parts.push('govt: ' + (govt  / eurUsdRate).toFixed(2) + ' EUR');
+  note.textContent = parts.length ? '= ' + parts.join(', ') : '';
+}
 
 function setDisplayCurrency(cur) {
   displayCurrency = cur;
@@ -628,12 +657,19 @@ function getExtraProducts() {
 }
 
 function calculate() {
-  const total = parseFloat(document.getElementById('totalPrice').value);
-  const govt  = parseFloat(document.getElementById('govtFee').value);
+  let total = parseFloat(document.getElementById('totalPrice').value);
+  let govt  = parseFloat(document.getElementById('govtFee').value);
 
   if (isNaN(total) || total <= 0) { alert('Podaj cenę całkowitą.'); return; }
   if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
-  if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
+
+  if (inputCurrency === 'USD') {
+    if (!eurUsdRate) { alert('Kurs USD nie jest jeszcze załadowany — poczekaj chwilę i spróbuj ponownie.'); return; }
+    total = Math.round(total / eurUsdRate * 100) / 100;
+    govt  = Math.round(govt  / eurUsdRate * 100) / 100;
+  }
+
+  if (govt > total) { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
 
   const extras = getExtraProducts();
   const extrasTotal = Math.round(extras.reduce((s, p) => s + p.price, 0) * 100) / 100;
