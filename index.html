@@ -91,20 +91,14 @@
     <input type="text" id="visaSearch" placeholder="Wpisz nazwę wizy lub kraj..." oninput="filterVisa()" autocomplete="off">
     <select id="visaSelect" size="1" onchange="onVisaSelect()" style="margin-top:6px; display:none; max-height:200px;"></select>
 
-    <div style="margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-      <span style="font-size:12px;color:#888;">Waluta wejściowa:</span>
-      <button onclick="setInputCurrency('EUR')" id="inp-eur" class="cur-btn active">EUR</button>
-      <button onclick="setInputCurrency('USD')" id="inp-usd" class="cur-btn">USD</button>
-      <span id="inp-note" style="font-size:12px;color:#aaa;margin-left:4px;"></span>
-    </div>
-    <div class="row2" style="margin-top:10px;">
+    <div class="row2">
       <div>
-        <label id="label-total">Cena całkowita zapłacona przez klienta (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
-        <input type="number" id="totalPrice" placeholder="np. 199.00" step="0.01" min="0" oninput="clearResult(); updateInputNote();">
+        <label>Cena całkowita zapłacona przez klienta (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
+        <input type="number" id="totalPrice" placeholder="np. 199.00" step="0.01" min="0" oninput="clearResult()">
       </div>
       <div>
-        <label id="label-govt">Government Fee (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
-        <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult(); updateInputNote();">
+        <label>Government Fee (EUR) <span style="font-weight:400;color:#aaa">— auto z listy</span></label>
+        <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult()">
       </div>
     </div>
   </div>
@@ -517,37 +511,11 @@ const VISA_DATA = [
   {name:"Australia Skilled Worker Visa Consultation",govt:0,price:49},
   {name:"Australia Transit Visa Consultation",govt:0,price:49},
   {name:"Australia Temporary Activity Visa Consultation",govt:0,price:49},
-  {name:"K-ETA South Korea",govt:8,price:34},
-  {name:"UK ETA",govt:0,priceUSD:105},
-  {name:"ESTA for USA | USD price",govt:0,priceUSD:128},
-  {name:"Indonesia | USD price",govt:0,priceUSD:122}
+  {name:"K-ETA South Korea",govt:8,price:34}
 ];
 
 let selectedScenario = 'partial';
 let displayCurrency = 'EUR';
-let inputCurrency = 'EUR';
-
-function setInputCurrency(cur) {
-  inputCurrency = cur;
-  document.getElementById('inp-eur').classList.toggle('active', cur === 'EUR');
-  document.getElementById('inp-usd').classList.toggle('active', cur === 'USD');
-  const c = cur === 'USD' ? 'USD' : 'EUR';
-  document.getElementById('label-total').innerHTML = `Cena całkowita zapłacona przez klienta (${c}) <span style="font-weight:400;color:#aaa">— auto z listy</span>`;
-  document.getElementById('label-govt').innerHTML  = `Government Fee (${c}) <span style="font-weight:400;color:#aaa">— auto z listy</span>`;
-  clearResult();
-  updateInputNote();
-}
-
-function updateInputNote() {
-  const note = document.getElementById('inp-note');
-  if (!note || inputCurrency !== 'USD' || !eurUsdRate) { if(note) note.textContent=''; return; }
-  const total = parseFloat(document.getElementById('totalPrice').value);
-  const govt  = parseFloat(document.getElementById('govtFee').value);
-  const parts = [];
-  if (!isNaN(total) && total > 0) parts.push('cena: ' + (total / eurUsdRate).toFixed(2) + ' EUR');
-  if (!isNaN(govt)  && govt  > 0) parts.push('govt: ' + (govt  / eurUsdRate).toFixed(2) + ' EUR');
-  note.textContent = parts.length ? '= ' + parts.join(', ') : '';
-}
 
 function setDisplayCurrency(cur) {
   displayCurrency = cur;
@@ -591,12 +559,7 @@ function filterVisa() {
   const sel = document.getElementById('visaSelect');
   if (q.length < 2) { sel.style.display = 'none'; return; }
   filtered = VISA_DATA.filter(v => v.name.toLowerCase().includes(q));
-  sel.innerHTML = filtered.map((v,i) => {
-    const priceStr = v.priceUSD
-      ? ` — cena: ${v.priceUSD} USD${eurUsdRate ? ' (≈' + (v.priceUSD / eurUsdRate).toFixed(2) + ' EUR)' : ''}`
-      : (v.price ? ' — cena: ' + v.price + ' EUR' : '');
-    return `<option value="${i}">${v.name}${priceStr} (govt: ${v.govt} EUR)</option>`;
-  }).join('');
+  sel.innerHTML = filtered.map((v,i) => `<option value="${i}">${v.name}${v.price ? ' — cena: '+v.price+' EUR' : ''} (govt: ${v.govt} EUR)</option>`).join('');
   sel.style.display = filtered.length ? 'block' : 'none';
   clearResult();
 }
@@ -608,11 +571,7 @@ function onVisaSelect() {
   const visa = filtered[idx];
   document.getElementById('visaSearch').value = visa.name;
   document.getElementById('govtFee').value = visa.govt;
-  if (visa.priceUSD && eurUsdRate) {
-    document.getElementById('totalPrice').value = (visa.priceUSD / eurUsdRate).toFixed(2);
-  } else if (visa.price) {
-    document.getElementById('totalPrice').value = visa.price;
-  }
+  if (visa.price) document.getElementById('totalPrice').value = visa.price;
   sel.style.display = 'none';
   clearResult();
 }
@@ -657,19 +616,12 @@ function getExtraProducts() {
 }
 
 function calculate() {
-  let total = parseFloat(document.getElementById('totalPrice').value);
-  let govt  = parseFloat(document.getElementById('govtFee').value);
+  const total = parseFloat(document.getElementById('totalPrice').value);
+  const govt  = parseFloat(document.getElementById('govtFee').value);
 
   if (isNaN(total) || total <= 0) { alert('Podaj cenę całkowitą.'); return; }
   if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
-
-  if (inputCurrency === 'USD') {
-    if (!eurUsdRate) { alert('Kurs USD nie jest jeszcze załadowany — poczekaj chwilę i spróbuj ponownie.'); return; }
-    total = Math.round(total / eurUsdRate * 100) / 100;
-    govt  = Math.round(govt  / eurUsdRate * 100) / 100;
-  }
-
-  if (govt > total) { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
+  if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
 
   const extras = getExtraProducts();
   const extrasTotal = Math.round(extras.reduce((s, p) => s + p.price, 0) * 100) / 100;
