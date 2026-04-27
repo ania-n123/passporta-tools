@@ -59,6 +59,12 @@
   .note { font-size: 12px; color: #888; margin-top: 12px; font-style: italic; }
   .reset-btn { background: none; border: none; color: #e85d04; font-size: 13px; cursor: pointer; margin-top: 10px; text-decoration: underline; }
   .rate-loading { color: #aaa; font-size: 12px; }
+  .extra-product-row { display: grid; grid-template-columns: 1fr 120px 36px; gap: 10px; align-items: end; margin-bottom: 10px; }
+  .extra-product-row label { margin-top: 0; }
+  .btn-add-product { background: none; border: 1px dashed #e85d04; color: #e85d04; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 6px; width: 100%; }
+  .btn-add-product:hover { background: #fff5f0; }
+  .btn-remove-product { background: none; border: none; color: #bbb; font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1; padding-bottom: 10px; }
+  .btn-remove-product:hover { color: #e53935; }
 </style>
 </head>
 <body>
@@ -92,6 +98,12 @@
         <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult()">
       </div>
     </div>
+  </div>
+
+  <div class="card" style="padding-bottom: 20px;">
+    <h2>Dodatkowe produkty w zamówieniu</h2>
+    <div id="extraRows"></div>
+    <button class="btn-add-product" onclick="addExtraProduct()">+ Dodaj produkt</button>
   </div>
 
   <button class="btn-calc" onclick="calculate()">Oblicz zwrot częściowy</button>
@@ -561,6 +573,37 @@ function setScenario(s) {
   clearResult();
 }
 
+function addExtraProduct() {
+  const container = document.getElementById('extraRows');
+  const row = document.createElement('div');
+  row.className = 'extra-product-row';
+  row.innerHTML = `
+    <div>
+      <label>Nazwa produktu</label>
+      <input type="text" placeholder="np. Express Processing" oninput="clearResult()">
+    </div>
+    <div>
+      <label>Cena (EUR)</label>
+      <input type="number" placeholder="20" step="0.01" min="0" oninput="clearResult()">
+    </div>
+    <button class="btn-remove-product" onclick="this.closest('.extra-product-row').remove(); clearResult();" title="Usuń">×</button>
+  `;
+  container.appendChild(row);
+  clearResult();
+}
+
+function getExtraProducts() {
+  const rows = document.querySelectorAll('.extra-product-row');
+  const products = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const name = inputs[0].value.trim() || 'Dodatkowy produkt';
+    const price = parseFloat(inputs[1].value) || 0;
+    if (price > 0) products.push({name, price});
+  });
+  return products;
+}
+
 function calculate() {
   const total = parseFloat(document.getElementById('totalPrice').value);
   const govt  = parseFloat(document.getElementById('govtFee').value);
@@ -569,46 +612,60 @@ function calculate() {
   if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
   if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
 
-  const commission = total - govt;
+  const extras = getExtraProducts();
+  const extrasTotal = Math.round(extras.reduce((s, p) => s + p.price, 0) * 100) / 100;
+  const adjustedTotal = Math.round((total + extrasTotal) * 100) / 100;
+
+  const commission = adjustedTotal - govt;
   let refund = 0, keep = 0, color = '', title = '', note = '';
   const breakdown = [];
 
+  function addPriceRows() {
+    if (extrasTotal > 0) {
+      breakdown.push(['Cena wizy', fmtEUR(total), fmtUSD(toUSD(total))]);
+      extras.forEach(p => breakdown.push([p.name, fmtEUR(p.price), fmtUSD(toUSD(p.price))]));
+      breakdown.push(['Razem zapłacono', fmtEUR(adjustedTotal), fmtUSD(toUSD(adjustedTotal))]);
+    } else {
+      breakdown.push(['Cena całkowita', fmtEUR(adjustedTotal), fmtUSD(toUSD(adjustedTotal))]);
+    }
+  }
+
   if (selectedScenario === 'full') {
-    refund = total; keep = 0; color = 'green';
+    refund = adjustedTotal; keep = 0; color = 'green';
     title = 'Pełny zwrot';
     note = 'Klient odstąpił w ciągu 14 dni, usługa nie została rozpoczęta.';
+    addPriceRows();
     breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
       ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))],
       ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
     );
   } else if (selectedScenario === 'partial') {
     keep   = Math.round(commission * 0.5 * 100) / 100;
-    refund = Math.round((govt + commission * 0.5) * 100) / 100;
+    refund = Math.round((adjustedTotal - keep) * 100) / 100;
     color  = 'orange'; title = 'Zwrot częściowy';
     note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji.';
+    addPriceRows();
     breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
       ['Government fee', fmtEUR(govt), fmtUSD(toUSD(govt))],
       ['Prowizja Passporta', fmtEUR(commission), fmtUSD(toUSD(commission))],
       ['50% prowizji (zatrzymujemy)', fmtEUR(keep), fmtUSD(toUSD(keep))],
       ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))]
     );
   } else if (selectedScenario === 'none_submitted') {
-    refund = 0; keep = total; color = 'red';
+    refund = 0; keep = adjustedTotal; color = 'red';
     title = 'Brak zwrotu — wniosek złożony';
     note  = 'Wniosek wizowy został już złożony do organu. Zwrot nie przysługuje.';
+    addPriceRows();
     breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
       ['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)],
       ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
     );
   } else if (selectedScenario === 'none_rush') {
-    refund = 0; keep = total; color = 'red';
+    refund = 0; keep = adjustedTotal; color = 'red';
     title = 'Brak zwrotu — usługa Rush wykonana';
     note  = 'Klient złożył deklarację Rush i zrzekł się prawa do odstąpienia po wykonaniu usługi.';
+    addPriceRows();
     breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
       ['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)],
       ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
     );
@@ -649,6 +706,7 @@ function resetAll() {
   document.getElementById('visaSelect').style.display = 'none';
   document.getElementById('totalPrice').value = '';
   document.getElementById('govtFee').value = '';
+  document.getElementById('extraRows').innerHTML = '';
   selectedScenario = null;
   ['full','partial','none_submitted','none_rush'].forEach(k =>
     document.getElementById('btn-'+k).classList.remove('active'));
