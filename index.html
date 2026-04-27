@@ -662,15 +662,21 @@ function calculate() {
       ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
     );
   } else if (selectedScenario === 'partial') {
-    keep   = Math.round(commission * 0.5 * 100) / 100;
-    refund = Math.round((adjustedTotal - keep) * 100) / 100;
+    const mainCommission = total - govt;
+    keep   = Math.round(mainCommission * 0.5 * 100) / 100;
+    refund = Math.round((govt + mainCommission * 0.5 + extrasTotal) * 100) / 100;
     color  = 'orange'; title = 'Zwrot częściowy';
-    note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji.';
+    note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji od wizy. Dodatkowe produkty zwracane w całości.';
     addPriceRows();
     breakdown.push(
       ['Government fee', fmtEUR(govt), fmtUSD(toUSD(govt))],
-      ['Prowizja Passporta', fmtEUR(commission), fmtUSD(toUSD(commission))],
+      ['Prowizja Passporta (wiza)', fmtEUR(mainCommission), fmtUSD(toUSD(mainCommission))],
       ['50% prowizji (zatrzymujemy)', fmtEUR(keep), fmtUSD(toUSD(keep))],
+    );
+    if (extrasTotal > 0) breakdown.push(
+      ['Dodatkowe produkty (pełny zwrot)', fmtEUR(extrasTotal), fmtUSD(toUSD(extrasTotal))]
+    );
+    breakdown.push(
       ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))]
     );
   } else if (selectedScenario === 'none_submitted') {
