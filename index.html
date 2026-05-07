@@ -59,6 +59,15 @@
   .note { font-size: 12px; color: #888; margin-top: 12px; font-style: italic; }
   .reset-btn { background: none; border: none; color: #e85d04; font-size: 13px; cursor: pointer; margin-top: 10px; text-decoration: underline; }
   .rate-loading { color: #aaa; font-size: 12px; }
+  .extra-row { display: grid; grid-template-columns: 1fr 120px 36px; gap: 10px; align-items: end; margin-bottom: 10px; }
+  .extra-row label { margin-top: 0; }
+  .btn-add-extra { background: none; border: 1px dashed #e85d04; color: #e85d04; padding: 9px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-top: 6px; width: 100%; }
+  .btn-add-extra:hover { background: #fff5f0; }
+  .btn-add-extra.usd { border-color: #1565c0; color: #1565c0; }
+  .btn-add-extra.usd:hover { background: #e8f0fe; }
+  .btn-remove { background: none; border: none; color: #bbb; font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1; padding-bottom: 10px; }
+  .btn-remove:hover { color: #e53935; }
+  .extras-title { font-size: 13px; font-weight: 600; color: #888; margin-top: 20px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
 </style>
 </head>
 <body>
@@ -92,6 +101,10 @@
         <input type="number" id="govtFee" placeholder="np. 100.00" step="0.01" min="0" oninput="clearResult()">
       </div>
     </div>
+
+    <div class="extras-title">Dodatkowe produkty</div>
+    <div id="extraRowsEur"></div>
+    <button class="btn-add-extra" onclick="addExtraEur()">+ Dodaj produkt</button>
   </div>
 
   <button class="btn-calc" onclick="calculate()">Oblicz zwrot częściowy</button>
@@ -116,6 +129,9 @@
       </div>
     </div>
 
+    <div class="extras-title" style="color:#1565c0;">Dodatkowe produkty</div>
+    <div id="extraRowsUsd"></div>
+    <button class="btn-add-extra usd" onclick="addExtraUsd()">+ Dodaj produkt</button>
 
     <button class="btn-calc" style="background:#1565c0;" onmouseover="this.style.background='#0d47a1'" onmouseout="this.style.background='#1565c0'" onclick="calculateUsd()">Oblicz zwrot (USD)</button>
     <button class="reset-btn" onclick="resetUsd()">↺ Wyczyść</button>
@@ -586,6 +602,23 @@ function setScenario(s) {
   clearResult();
 }
 
+function getExtrasEur() {
+  return [...document.querySelectorAll('#extraRowsEur .extra-row')].map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { name: inputs[0].value.trim() || 'Dodatkowy produkt', price: parseFloat(inputs[1].value) || 0 };
+  }).filter(p => p.price > 0);
+}
+
+function addExtraEur() {
+  const row = document.createElement('div');
+  row.className = 'extra-row';
+  row.innerHTML = `
+    <div><label>Nazwa produktu</label><input type="text" placeholder="np. Express Processing" oninput="clearResult()"></div>
+    <div><label>Cena (EUR)</label><input type="number" placeholder="20" step="0.01" min="0" oninput="clearResult()"></div>
+    <button class="btn-remove" onclick="this.closest('.extra-row').remove(); clearResult();" title="Usuń">×</button>`;
+  document.getElementById('extraRowsEur').appendChild(row);
+}
+
 function calculate() {
   const total = parseFloat(document.getElementById('totalPrice').value);
   const govt  = parseFloat(document.getElementById('govtFee').value);
@@ -594,49 +627,57 @@ function calculate() {
   if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
   if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
 
+  const extras = getExtrasEur();
+  const extrasTotal = Math.round(extras.reduce((s, p) => s + p.price, 0) * 100) / 100;
+  const grandTotal = Math.round((total + extrasTotal) * 100) / 100;
   const commission = total - govt;
   let refund = 0, keep = 0, color = '', title = '', note = '';
   const breakdown = [];
 
   if (selectedScenario === 'full') {
-    refund = total; keep = 0; color = 'green';
+    refund = grandTotal; keep = 0; color = 'green';
     title = 'Pełny zwrot';
     note = 'Klient odstąpił w ciągu 14 dni, usługa nie została rozpoczęta.';
-    breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
-      ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))],
-      ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
-    );
+    if (extrasTotal > 0) {
+      breakdown.push(['Cena wizy', fmtEUR(total), fmtUSD(toUSD(total))]);
+      extras.forEach(p => breakdown.push([p.name, fmtEUR(p.price), fmtUSD(toUSD(p.price))]));
+      breakdown.push(['Razem zapłacono', fmtEUR(grandTotal), fmtUSD(toUSD(grandTotal))]);
+    } else {
+      breakdown.push(['Cena całkowita', fmtEUR(grandTotal), fmtUSD(toUSD(grandTotal))]);
+    }
+    breakdown.push(['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))]);
+    breakdown.push(['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]);
   } else if (selectedScenario === 'partial') {
     keep   = Math.round(commission * 0.5 * 100) / 100;
-    refund = Math.round((govt + commission * 0.5) * 100) / 100;
+    refund = Math.round((govt + commission * 0.5 + extrasTotal) * 100) / 100;
     color  = 'orange'; title = 'Zwrot częściowy';
-    note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji.';
+    note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji od wizy. Dodatkowe produkty zwracane w całości.';
+    if (extrasTotal > 0) {
+      breakdown.push(['Cena wizy', fmtEUR(total), fmtUSD(toUSD(total))]);
+      extras.forEach(p => breakdown.push([p.name, fmtEUR(p.price), fmtUSD(toUSD(p.price))]));
+    } else {
+      breakdown.push(['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))]);
+    }
     breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
       ['Government fee', fmtEUR(govt), fmtUSD(toUSD(govt))],
       ['Prowizja Passporta', fmtEUR(commission), fmtUSD(toUSD(commission))],
       ['50% prowizji (zatrzymujemy)', fmtEUR(keep), fmtUSD(toUSD(keep))],
       ['Zwrot dla klienta', fmtEUR(refund), fmtUSD(toUSD(refund))]
     );
   } else if (selectedScenario === 'none_submitted') {
-    refund = 0; keep = total; color = 'red';
+    refund = 0; keep = grandTotal; color = 'red';
     title = 'Brak zwrotu — wniosek złożony';
     note  = 'Wniosek wizowy został już złożony do organu. Zwrot nie przysługuje.';
-    breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
-      ['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)],
-      ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
-    );
+    breakdown.push(['Cena całkowita', fmtEUR(grandTotal), fmtUSD(toUSD(grandTotal))]);
+    breakdown.push(['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)]);
+    breakdown.push(['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]);
   } else if (selectedScenario === 'none_rush') {
-    refund = 0; keep = total; color = 'red';
+    refund = 0; keep = grandTotal; color = 'red';
     title = 'Brak zwrotu — usługa Rush wykonana';
     note  = 'Klient złożył deklarację Rush i zrzekł się prawa do odstąpienia po wykonaniu usługi.';
-    breakdown.push(
-      ['Cena całkowita', fmtEUR(total), fmtUSD(toUSD(total))],
-      ['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)],
-      ['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]
-    );
+    breakdown.push(['Cena całkowita', fmtEUR(grandTotal), fmtUSD(toUSD(grandTotal))]);
+    breakdown.push(['Zwrot dla klienta', fmtEUR(0), fmtUSD(0)]);
+    breakdown.push(['Zatrzymujemy', fmtEUR(keep), fmtUSD(toUSD(keep))]);
   }
 
   const amountEUR = refund > 0 ? refund : keep;
@@ -674,6 +715,7 @@ function resetAll() {
   document.getElementById('visaSelect').style.display = 'none';
   document.getElementById('totalPrice').value = '';
   document.getElementById('govtFee').value = '';
+  document.getElementById('extraRowsEur').innerHTML = '';
   selectedScenario = null;
   ['full','partial','none_submitted','none_rush'].forEach(k =>
     document.getElementById('btn-'+k).classList.remove('active'));
@@ -684,6 +726,23 @@ function resetAll() {
 // ── Przelicznik ręczny USD ──────────────────────────────────────────────────
 
 const usdScenario = 'partial';
+
+function getExtrasUsd() {
+  return [...document.querySelectorAll('#extraRowsUsd .extra-row')].map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { name: inputs[0].value.trim() || 'Dodatkowy produkt', price: parseFloat(inputs[1].value) || 0 };
+  }).filter(p => p.price > 0);
+}
+
+function addExtraUsd() {
+  const row = document.createElement('div');
+  row.className = 'extra-row';
+  row.innerHTML = `
+    <div><label>Nazwa produktu</label><input type="text" placeholder="np. Express Processing" oninput="clearUsdResult()"></div>
+    <div><label>Cena (USD)</label><input type="number" placeholder="20" step="0.01" min="0" oninput="clearUsdResult()"></div>
+    <button class="btn-remove" onclick="this.closest('.extra-row').remove(); clearUsdResult();" title="Usuń">×</button>`;
+  document.getElementById('extraRowsUsd').appendChild(row);
+}
 
 function fmtUSDval(n) { return n.toFixed(2).replace('.', ',') + ' USD'; }
 
@@ -705,50 +764,30 @@ function calculateUsd() {
   if (isNaN(govt) || govt < 0)   { alert('Podaj government fee (może być 0).'); return; }
   if (govt > total)               { alert('Government fee nie może być wyższy niż cena całkowita.'); return; }
 
+  const extras = getExtrasUsd();
+  const extrasTotal = Math.round(extras.reduce((s, p) => s + p.price, 0) * 100) / 100;
+  const grandTotal = Math.round((total + extrasTotal) * 100) / 100;
   const commission = total - govt;
   let refund = 0, keep = 0, color = '', title = '', note = '';
   const breakdown = [];
 
-  if (usdScenario === 'full') {
-    refund = total; keep = 0; color = 'green';
-    title = 'Pełny zwrot';
-    note = 'Klient odstąpił w ciągu 14 dni, usługa nie została rozpoczęta.';
-    breakdown.push(
-      ['Cena całkowita', fmtUSDval(total), fmtEURval(toEURfromUSD(total))],
-      ['Zwrot dla klienta', fmtUSDval(refund), fmtEURval(toEURfromUSD(refund))],
-      ['Zatrzymujemy', fmtUSDval(keep), fmtEURval(toEURfromUSD(keep))]
-    );
-  } else if (usdScenario === 'partial') {
-    keep   = Math.round(commission * 0.5 * 100) / 100;
-    refund = Math.round((govt + commission * 0.5) * 100) / 100;
-    color  = 'orange'; title = 'Zwrot częściowy';
-    note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji.';
-    breakdown.push(
-      ['Cena całkowita', fmtUSDval(total), fmtEURval(toEURfromUSD(total))],
-      ['Government fee', fmtUSDval(govt), fmtEURval(toEURfromUSD(govt))],
-      ['Prowizja Passporta', fmtUSDval(commission), fmtEURval(toEURfromUSD(commission))],
-      ['50% prowizji (zatrzymujemy)', fmtUSDval(keep), fmtEURval(toEURfromUSD(keep))],
-      ['Zwrot dla klienta', fmtUSDval(refund), fmtEURval(toEURfromUSD(refund))]
-    );
-  } else if (usdScenario === 'none_submitted') {
-    refund = 0; keep = total; color = 'red';
-    title = 'Brak zwrotu — wniosek złożony';
-    note  = 'Wniosek wizowy został już złożony do organu. Zwrot nie przysługuje.';
-    breakdown.push(
-      ['Cena całkowita', fmtUSDval(total), fmtEURval(toEURfromUSD(total))],
-      ['Zwrot dla klienta', fmtUSDval(0), fmtEURval(0)],
-      ['Zatrzymujemy', fmtUSDval(keep), fmtEURval(toEURfromUSD(keep))]
-    );
-  } else if (usdScenario === 'none_rush') {
-    refund = 0; keep = total; color = 'red';
-    title = 'Brak zwrotu — usługa Rush wykonana';
-    note  = 'Klient złożył deklarację Rush i zrzekł się prawa do odstąpienia po wykonaniu usługi.';
-    breakdown.push(
-      ['Cena całkowita', fmtUSDval(total), fmtEURval(toEURfromUSD(total))],
-      ['Zwrot dla klienta', fmtUSDval(0), fmtEURval(0)],
-      ['Zatrzymujemy', fmtUSDval(keep), fmtEURval(toEURfromUSD(keep))]
-    );
+  // usdScenario is always 'partial'
+  keep   = Math.round(commission * 0.5 * 100) / 100;
+  refund = Math.round((govt + commission * 0.5 + extrasTotal) * 100) / 100;
+  color  = 'orange'; title = 'Zwrot częściowy';
+  note   = 'Usługa rozpoczęta — zatrzymujemy 50% prowizji od wizy. Dodatkowe produkty zwracane w całości.';
+  if (extrasTotal > 0) {
+    breakdown.push(['Cena wizy', fmtUSDval(total), fmtEURval(toEURfromUSD(total))]);
+    extras.forEach(p => breakdown.push([p.name, fmtUSDval(p.price), fmtEURval(toEURfromUSD(p.price))]));
+  } else {
+    breakdown.push(['Cena całkowita', fmtUSDval(total), fmtEURval(toEURfromUSD(total))]);
   }
+  breakdown.push(
+    ['Government fee', fmtUSDval(govt), fmtEURval(toEURfromUSD(govt))],
+    ['Prowizja Passporta', fmtUSDval(commission), fmtEURval(toEURfromUSD(commission))],
+    ['50% prowizji (zatrzymujemy)', fmtUSDval(keep), fmtEURval(toEURfromUSD(keep))],
+    ['Zwrot dla klienta', fmtUSDval(refund), fmtEURval(toEURfromUSD(refund))]
+  );
 
   const amountUSD = refund > 0 ? refund : keep;
   const amountEUR = toEURfromUSD(amountUSD);
@@ -783,6 +822,7 @@ function clearUsdResult() {
 function resetUsd() {
   document.getElementById('usdTotal').value = '';
   document.getElementById('usdGovt').value = '';
+  document.getElementById('extraRowsUsd').innerHTML = '';
   clearUsdResult();
 }
 </script>
